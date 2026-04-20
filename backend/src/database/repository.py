@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import math
 from typing import Any
 
-from pymongo import ASCENDING, DESCENDING
+from pymongo import ASCENDING, DESCENDING, UpdateOne
 
 from .db import collection_map, get_collection
 
@@ -797,25 +797,71 @@ def save_anomaly_events(records: list[dict]) -> list[dict]:
     if not records:
         return []
     now = _utc_now()
-    docs = []
+    docs_by_identity: dict[tuple[str, str, datetime, str, str], dict] = {}
     for item in records:
-        docs.append(
+        document = {
+            "symbol": str(item["symbol"]).upper(),
+            "source": str(item.get("source") or "processing"),
+            "timestamp": _parse_datetime(item.get("timestamp"), "timestamp"),
+            "value": _coerce_float(item.get("value"), "value"),
+            "anomaly_type": str(item.get("anomaly_type") or "volatility"),
+            "anomaly_score": _coerce_float(item.get("anomaly_score"), "anomaly_score"),
+            "severity": str(item.get("severity") or "low"),
+            "method": str(item.get("method") or "zscore+isolation_forest"),
+            "is_anomaly": bool(item.get("is_anomaly", False)),
+        }
+        identity = (
+            document["symbol"],
+            document["source"],
+            document["timestamp"],
+            document["anomaly_type"],
+            document["method"],
+        )
+        docs_by_identity[identity] = document
+
+    if not docs_by_identity:
+        return []
+
+    collection = get_collection(collection_map()["anomaly_events"])
+    operations = []
+    for symbol, source, timestamp, anomaly_type, method in docs_by_identity:
+        document = docs_by_identity[(symbol, source, timestamp, anomaly_type, method)]
+        operations.append(
+            UpdateOne(
+                {
+                    "symbol": symbol,
+                    "source": source,
+                    "timestamp": timestamp,
+                    "anomaly_type": anomaly_type,
+                    "method": method,
+                },
+                {
+                    "$set": {
+                        "value": document["value"],
+                        "anomaly_score": document["anomaly_score"],
+                        "severity": document["severity"],
+                        "is_anomaly": document["is_anomaly"],
+                        "updated_at": now,
+                    },
+                    "$setOnInsert": {
+                        "created_at": now,
+                    },
+                },
+                upsert=True,
+            )
+        )
+    collection.bulk_write(operations, ordered=False)
+
+    return [
+        _serialize(
             {
-                "symbol": str(item["symbol"]).upper(),
-                "source": str(item.get("source") or "processing"),
-                "timestamp": _parse_datetime(item.get("timestamp"), "timestamp"),
-                "value": _coerce_float(item.get("value"), "value"),
-                "anomaly_type": str(item.get("anomaly_type") or "volatility"),
-                "anomaly_score": _coerce_float(item.get("anomaly_score"), "anomaly_score"),
-                "severity": str(item.get("severity") or "low"),
-                "method": str(item.get("method") or "zscore+isolation_forest"),
-                "is_anomaly": bool(item.get("is_anomaly", False)),
+                **document,
                 "created_at": now,
+                "updated_at": now,
             }
         )
-    collection = get_collection(collection_map()["anomaly_events"])
-    result = collection.insert_many(docs)
-    return [_serialize({**doc, "_id": oid}) for doc, oid in zip(docs, result.inserted_ids)]
+        for document in docs_by_identity.values()
+    ]
 
 
 def fetch_anomaly_events(
@@ -837,13 +883,30 @@ def fetch_anomaly_events(
     if anomalies_only:
         query["is_anomaly"] = True
     _build_time_filter(query, "timestamp", start_time, end_time)
-    cursor = (
-        get_collection(collection_map()["anomaly_events"])
-        .find(query, _ANOMALY_PROJECTION)
-        .sort("timestamp", DESCENDING)
-        .skip(safe_offset)
-        .limit(safe_limit)
-        .batch_size(300)
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"timestamp": -1, "created_at": -1}},
+        {
+            "$group": {
+                "_id": {
+                    "symbol": "$symbol",
+                    "source": "$source",
+                    "timestamp": "$timestamp",
+                    "anomaly_type": "$anomaly_type",
+                    "method": "$method",
+                },
+                "doc": {"$first": "$$ROOT"},
+            }
+        },
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        {"$sort": {"timestamp": -1, "created_at": -1}},
+        {"$skip": safe_offset},
+        {"$limit": safe_limit},
+        {"$project": _ANOMALY_PROJECTION},
+    ]
+    cursor = get_collection(collection_map()["anomaly_events"]).aggregate(
+        pipeline,
+        allowDiskUse=True,
     )
     return [_serialize(item) for item in cursor]
 

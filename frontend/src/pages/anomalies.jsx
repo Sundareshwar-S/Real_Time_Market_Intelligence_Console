@@ -111,7 +111,46 @@ export default function AnomaliesPage() {
         return Number.isFinite(ts) && ts >= cutoff;
       })
       .sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
-    return scoped.map((point, index, all) => {
+    const normalized = scoped.flatMap((point) => {
+      const rawCrypto = Number(point.crypto);
+      const rawStock = Number(point.stock);
+      const rawTotal = Number(point.total);
+      const crypto = Number.isFinite(rawCrypto) && rawCrypto > 0 ? rawCrypto : null;
+      const stock = Number.isFinite(rawStock) && rawStock > 0 ? rawStock : null;
+      const sourceCoverage = Number(crypto != null) + Number(stock != null);
+
+      if (sourceCoverage === 2) {
+        return [{ ...point, total: crypto + stock, crypto, stock, sourceCoverage }];
+      }
+      if (sourceCoverage === 1) {
+        const total = Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : (crypto ?? stock);
+        if (!Number.isFinite(total) || total <= 0) {
+          return [];
+        }
+        return [{ ...point, total, crypto, stock, sourceCoverage }];
+      }
+      if (!Number.isFinite(rawTotal) || rawTotal <= 0) {
+        return [];
+      }
+      return [{ ...point, total: rawTotal, crypto, stock, sourceCoverage }];
+    });
+    const dualCoverageTotals = normalized
+      .filter((point) => point.sourceCoverage === 2)
+      .map((point) => Number(point.total))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((a, b) => a - b);
+    const dualCoverageMedian = calculatePercentile(dualCoverageTotals, 0.5);
+    const minAllowedPartialTotal =
+      Number.isFinite(dualCoverageMedian) && dualCoverageMedian > 0
+        ? dualCoverageMedian * 0.35
+        : 0;
+    const coverageAware = normalized.filter((point) => {
+      if (point.sourceCoverage >= 2 || minAllowedPartialTotal <= 0) {
+        return true;
+      }
+      return Number(point.total) >= minAllowedPartialTotal;
+    });
+    return coverageAware.map((point, index, all) => {
       const start = Math.max(0, index - 5);
       const baselineWindow = all.slice(start, index + 1);
       const baseline =
@@ -123,6 +162,28 @@ export default function AnomaliesPage() {
       };
     });
   }, [marketSeries, windowMs]);
+
+  const liquidityDomain = useMemo(() => {
+    const values = liquiditySeries
+      .flatMap((point) => [Number(point.total), Number(point.baseline)])
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((a, b) => a - b);
+    if (values.length < 2) {
+      return ["auto", "auto"];
+    }
+    const lowerBound = calculatePercentile(values, 0.05);
+    const upperBound = calculatePercentile(values, 0.95);
+    const min = Math.max(0, Math.min(lowerBound, upperBound));
+    const max = Math.max(lowerBound, upperBound);
+    const spread = Math.max(max - min, max * 0.02, 1);
+    const padding = spread * 0.12;
+    const domainMin = Math.max(0, min - padding);
+    const domainMax = max + padding;
+    if (!Number.isFinite(domainMin) || !Number.isFinite(domainMax) || domainMax <= domainMin) {
+      return ["auto", "auto"];
+    }
+    return [domainMin, domainMax];
+  }, [liquiditySeries]);
 
   const anomalySeries = useMemo(() => {
     const bucketed = new Map();
@@ -231,9 +292,10 @@ export default function AnomaliesPage() {
           <RealtimeLineChart
             data={liquiditySeries}
             height={280}
+            yDomain={liquidityDomain}
             lines={[
-              { dataKey: "total", color: "#55d7ed", strokeWidth: 2.4 },
-              { dataKey: "baseline", color: "#bdc9ca", strokeWidth: 1.6, type: "monotone" },
+              { dataKey: "total", color: "#55d7ed", strokeWidth: 2.4, type: "linear" },
+              { dataKey: "baseline", color: "#bdc9ca", strokeWidth: 1.6, type: "linear" },
             ]}
           />
         </Panel>

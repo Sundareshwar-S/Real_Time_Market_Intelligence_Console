@@ -62,6 +62,16 @@ def init_db() -> None:
     db[mapping["market_data_weather"]].create_index([("symbol", ASCENDING), ("captured_at", DESCENDING)])
     db[mapping["processed_data"]].create_index([("symbol", ASCENDING), ("timestamp", DESCENDING)])
     db[mapping["anomaly_events"]].create_index([("symbol", ASCENDING), ("timestamp", DESCENDING)])
+    db[mapping["anomaly_events"]].create_index(
+        [
+            ("symbol", ASCENDING),
+            ("source", ASCENDING),
+            ("timestamp", DESCENDING),
+            ("anomaly_type", ASCENDING),
+            ("method", ASCENDING),
+            ("created_at", DESCENDING),
+        ]
+    )
     db[mapping["forecast_outputs"]].create_index([("symbol", ASCENDING), ("generated_at", DESCENDING)])
     db[mapping["correlation_metrics"]].create_index(
         [("symbol_a", ASCENDING), ("symbol_b", ASCENDING), ("timestamp", DESCENDING)]

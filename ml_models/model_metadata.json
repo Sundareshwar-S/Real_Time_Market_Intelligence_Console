@@ -20,7 +20,7 @@
       ],
       "format": "joblib",
       "model_type": "IsolationForest",
-      "trained_at": "2026-04-20T14:34:27.666297Z"
+      "trained_at": "2026-04-20T15:20:52.947671Z"
     },
     "ETH": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/anomaly_iforest_ETH.joblib",
@@ -31,7 +31,7 @@
       ],
       "format": "joblib",
       "model_type": "IsolationForest",
-      "trained_at": "2026-04-20T14:34:27.779959Z"
+      "trained_at": "2026-04-20T15:20:53.181594Z"
     },
     "MSFT": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/anomaly_iforest_MSFT.joblib",
@@ -53,7 +53,7 @@
       ],
       "format": "joblib",
       "model_type": "IsolationForest",
-      "trained_at": "2026-04-20T14:34:27.893114Z"
+      "trained_at": "2026-04-20T15:20:53.421127Z"
     },
     "TSLA": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/anomaly_iforest_TSLA.joblib",
@@ -105,42 +105,42 @@
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_AAPL.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:35:00.453326Z",
+      "trained_at": "2026-04-20T15:21:28.225271Z",
       "training_points": 729
     },
     "BTC": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_BTC.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:35:06.291680Z",
+      "trained_at": "2026-04-20T15:21:34.705073Z",
       "training_points": 731
     },
     "ETH": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_ETH.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:35:13.859399Z",
+      "trained_at": "2026-04-20T15:21:40.920414Z",
       "training_points": 731
     },
     "MSFT": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_MSFT.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:19:38.173452Z",
+      "trained_at": "2026-04-20T15:21:46.977433Z",
       "training_points": 729
     },
     "SOL": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_SOL.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:19:43.768186Z",
+      "trained_at": "2026-04-20T15:21:52.597657Z",
       "training_points": 731
     },
     "TSLA": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_TSLA.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:19:49.183549Z",
+      "trained_at": "2026-04-20T15:21:58.155388Z",
       "training_points": 729
     },
     "WTHR-LONDON": {
@@ -165,6 +165,6 @@
       "training_points": 154
     }
   },
-  "updated_at": "2026-04-20T14:35:13.859565Z",
+  "updated_at": "2026-04-20T15:31:39.057973Z",
   "version": 1
 }

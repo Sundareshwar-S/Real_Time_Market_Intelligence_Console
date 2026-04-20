@@ -42,6 +42,7 @@ def get_anomalies():
         has_more = len(records) > limit
         records = records[:limit]
         payload = build_anomaly_payload(records)
+        event_count = len(payload.get("events", []))
         response = build_success_response(
             data=payload,
             source="processing",
@@ -53,12 +54,13 @@ def get_anomalies():
                     "anomalies_only": anomalies_only,
                     "start_time": start_time,
                     "end_time": end_time,
+                    "deduplicated": True,
                 }.items()
                 if value is not None
             },
             pagination={"limit": limit, "offset": offset, "has_more": has_more},
             freshness=fetch_freshness_status(source=source),
-            no_data=len(records) == 0,
+            no_data=event_count == 0,
         )
         return jsonify(response), 200
     except ValueError as exc:

@@ -629,17 +629,23 @@ function applyMarketRows(rows, source = "stream", replace = false, timestamp = n
 
 function normalizeAnomalyEvents(rows, sourceHint = "processing") {
   return rows
-    .map((row) => ({
-      id: row.id || `${row.symbol || "UNK"}:${row.timestamp || ""}:${row.score || row.anomaly_score || ""}`,
-      symbol: String(row.symbol || "").toUpperCase(),
-      source: String(row.source || sourceHint).toLowerCase(),
-      type: row.type || row.anomaly_type || "volatility",
-      score: toNumber(row.score == null ? row.anomaly_score : row.score),
-      severity: String(row.severity || "low").toLowerCase(),
-      value: row.value == null ? null : toNumber(row.value),
-      timestamp: parseTimestamp(row.timestamp, new Date().toISOString()),
-      message: row.message || null,
-    }))
+    .map((row) => {
+      const symbol = String(row.symbol || "").toUpperCase();
+      const source = String(row.source || sourceHint).toLowerCase();
+      const type = row.type || row.anomaly_type || "volatility";
+      const timestamp = parseTimestamp(row.timestamp, new Date().toISOString());
+      return {
+        id: row.id || `${symbol || "UNK"}:${source}:${type}:${timestamp || ""}`,
+        symbol,
+        source,
+        type,
+        score: toNumber(row.score == null ? row.anomaly_score : row.score),
+        severity: String(row.severity || "low").toLowerCase(),
+        value: row.value == null ? null : toNumber(row.value),
+        timestamp,
+        message: row.message || null,
+      };
+    })
     .filter((item) => item.symbol);
 }
 
