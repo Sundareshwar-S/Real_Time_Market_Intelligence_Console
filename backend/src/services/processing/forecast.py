@@ -475,30 +475,108 @@ def _predict_from_non_prophet_model(
     raise ValueError(f"unsupported_non_prophet_model_kind:{kind}")
 
 
+def _compute_mape(actual_values: list[float], predicted_values: list[float]) -> float:
+    if not actual_values or not predicted_values:
+        return float("inf")
+    usable = min(len(actual_values), len(predicted_values))
+    if usable <= 0:
+        return float("inf")
+    actual = pd.Series(actual_values[:usable], dtype="float64")
+    predicted = pd.Series(predicted_values[:usable], dtype="float64")
+    errors = (actual - predicted).abs()
+    denom = actual.abs().clip(lower=1e-9)
+    return float((errors / denom).mean() * 100.0)
+
+
+def _evaluate_non_prophet_holdout(
+    target: pd.DataFrame,
+    cfg: ForecastConfig,
+    symbol: str,
+    source_name: str,
+    candidate: str,
+    holdout_steps: int = 30,
+) -> float | None:
+    safe_holdout = max(7, int(holdout_steps))
+    ordered = target.sort_values("timestamp").copy()
+    if len(ordered) < (cfg.min_training_points + safe_holdout):
+        return None
+    train_target = ordered.iloc[:-safe_holdout].copy()
+    test_target = ordered.iloc[-safe_holdout:].copy()
+    actual_values = [float(item) for item in test_target["value"].astype(float).tolist()]
+    eval_cfg = ForecastConfig(
+        interval_minutes=cfg.interval_minutes,
+        horizon_steps=safe_holdout,
+        min_training_points=cfg.min_training_points,
+        z_filter_threshold=cfg.z_filter_threshold,
+    )
+    if candidate == "return_regression":
+        model_data = _train_return_regression_model(train_target, cfg)
+        output = _predict_from_return_regression_model(model_data, symbol, source_name, eval_cfg)
+    elif candidate == "seasonal_regression":
+        model_data = _train_legacy_price_regression_model(train_target, cfg)
+        output = _predict_from_legacy_price_regression_model(model_data, symbol, source_name, eval_cfg)
+    else:
+        raise ValueError(f"unsupported_non_prophet_candidate:{candidate}")
+    predicted_values = [float(item["predicted_value"]) for item in output[:safe_holdout]]
+    return _compute_mape(actual_values, predicted_values)
+
+
 def _train_preferred_non_prophet_model(
     target: pd.DataFrame,
     cfg: ForecastConfig,
     symbol: str,
     source_name: str,
 ) -> tuple[dict, list[dict]]:
-    try:
-        model_data = _train_return_regression_model(target, cfg)
-        save_forecast_model(symbol, model_data, training_points=len(target))
-        output = _predict_from_return_regression_model(model_data, symbol, source_name, cfg)
-        return model_data, output
-    except Exception as exc:
-        _LOGGER.warning("Return-regression train failed for %s: %s", symbol, exc)
+    candidates = [
+        (
+            "return_regression",
+            _train_return_regression_model,
+            _predict_from_return_regression_model,
+        ),
+        (
+            "seasonal_regression",
+            _train_legacy_price_regression_model,
+            _predict_from_legacy_price_regression_model,
+        ),
+    ]
+    candidate_scores: dict[str, float] = {}
+    for candidate_name, _, _ in candidates:
         try:
-            model_data = _train_legacy_price_regression_model(target, cfg)
+            score = _evaluate_non_prophet_holdout(target, cfg, symbol, source_name, candidate_name)
+            if score is not None and math.isfinite(score):
+                candidate_scores[candidate_name] = score
+        except Exception as exc:
+            _LOGGER.warning(
+                "Non-prophet candidate holdout evaluation failed for %s (%s): %s",
+                symbol,
+                candidate_name,
+                exc,
+            )
+
+    ordered_candidates = sorted(
+        candidates,
+        key=lambda item: candidate_scores.get(item[0], float("inf")),
+    )
+    for candidate_name, train_fn, predict_fn in ordered_candidates:
+        try:
+            model_data = train_fn(target, cfg)
+            if isinstance(model_data, dict) and candidate_name in candidate_scores:
+                model_data["holdout_mape"] = float(candidate_scores[candidate_name])
             save_forecast_model(symbol, model_data, training_points=len(target))
-            output = _predict_from_legacy_price_regression_model(model_data, symbol, source_name, cfg)
+            output = predict_fn(model_data, symbol, source_name, cfg)
             return model_data, output
-        except Exception as legacy_exc:
-            _LOGGER.warning("Legacy price-regression train failed for %s: %s", symbol, legacy_exc)
-            fallback_model = _build_fallback_model(target, cfg)
-            save_forecast_model(symbol, fallback_model, training_points=len(target))
-            output = _predict_from_fallback_model(fallback_model, symbol, source_name, cfg)
-            return fallback_model, output
+        except Exception as exc:
+            _LOGGER.warning(
+                "Non-prophet train failed for %s (%s): %s",
+                symbol,
+                candidate_name,
+                exc,
+            )
+
+    fallback_model = _build_fallback_model(target, cfg)
+    save_forecast_model(symbol, fallback_model, training_points=len(target))
+    output = _predict_from_fallback_model(fallback_model, symbol, source_name, cfg)
+    return fallback_model, output
 
 
 def summarize_forecast_diagnostics(
@@ -579,7 +657,6 @@ def summarize_forecast_diagnostics(
                 backend = "prophet"
             else:
                 eval_target = target.iloc[:-safe_holdout].copy()
-                model_data = _train_return_regression_model(eval_target, config)
                 eval_cfg = ForecastConfig(
                     interval_minutes=config.interval_minutes,
                     horizon_steps=safe_holdout,
@@ -589,19 +666,58 @@ def summarize_forecast_diagnostics(
                 source_name = (
                     str(target["source"].iloc[-1]) if "source" in target.columns and not target.empty else "processing"
                 )
-                predicted_rows = _predict_from_return_regression_model(model_data, symbol, source_name, eval_cfg)
-                predicted_values = [float(item["predicted_value"]) for item in predicted_rows]
-                actual_values = [float(item) for item in actual_frame["y"].astype(float).tolist()]
-                min_len = min(len(actual_values), len(predicted_values))
-                if min_len == 0:
+                base_actual_values = [float(item) for item in actual_frame["y"].astype(float).tolist()]
+                candidate_runs: list[tuple[str, list[float]]] = []
+                for candidate_name, train_fn, predict_fn in (
+                    ("return_regression", _train_return_regression_model, _predict_from_return_regression_model),
+                    ("seasonal_regression", _train_legacy_price_regression_model, _predict_from_legacy_price_regression_model),
+                ):
+                    try:
+                        candidate_model = train_fn(eval_target, config)
+                        candidate_rows = predict_fn(candidate_model, symbol, source_name, eval_cfg)
+                        candidate_values = [float(item["predicted_value"]) for item in candidate_rows[:safe_holdout]]
+                        if candidate_values:
+                            candidate_runs.append((candidate_name, candidate_values))
+                    except Exception as candidate_exc:
+                        _LOGGER.warning(
+                            "Forecast diagnostics candidate failed for %s (%s): %s",
+                            symbol,
+                            candidate_name,
+                            candidate_exc,
+                        )
+
+                if not candidate_runs:
                     by_symbol[symbol] = {
                         "status": "skipped",
                         "reason": "no_prediction_overlap",
                     }
                     continue
-                actual_values = actual_values[:min_len]
-                predicted_values = predicted_values[:min_len]
-                backend = "return_regression"
+
+                best_backend = None
+                best_predicted_values: list[float] = []
+                best_mape = float("inf")
+                for candidate_name, candidate_values in candidate_runs:
+                    min_len = min(len(base_actual_values), len(candidate_values))
+                    if min_len == 0:
+                        continue
+                    candidate_actual = base_actual_values[:min_len]
+                    candidate_predicted = candidate_values[:min_len]
+                    candidate_mape = _compute_mape(candidate_actual, candidate_predicted)
+                    if candidate_mape < best_mape:
+                        best_mape = candidate_mape
+                        best_backend = candidate_name
+                        best_predicted_values = candidate_predicted
+
+                if best_backend is None or not best_predicted_values:
+                    by_symbol[symbol] = {
+                        "status": "skipped",
+                        "reason": "no_prediction_overlap",
+                    }
+                    continue
+
+                predicted_values = best_predicted_values
+                actual_values = base_actual_values[:len(predicted_values)]
+                backend = best_backend
 
             errors = pd.Series(actual_values) - pd.Series(predicted_values)
             rmse = float(math.sqrt((errors.pow(2).mean())))
@@ -785,6 +901,7 @@ def retrain_forecast_models(
     prophet_ready = _can_use_prophet()
     for symbol, group in frame.groupby("symbol"):
         ordered = group.sort_values("timestamp").copy()
+        source_name = str(ordered["source"].iloc[-1]) if "source" in ordered.columns else "processing"
         filtered = ordered[ordered["z_score"].abs() < config.z_filter_threshold]
         target = filtered if len(filtered) >= min_points else ordered
         if len(target) < min_points:
@@ -795,29 +912,21 @@ def retrain_forecast_models(
                 model = _train_prophet_model(target)
                 save_forecast_model(symbol, model, training_points=len(target))
             else:
-                model = _train_return_regression_model(target, config)
-                save_forecast_model(symbol, model, training_points=len(target))
+                _train_preferred_non_prophet_model(target, config, symbol, source_name)
             trained_symbols.append(symbol)
         except Exception as exc:
             _LOGGER.warning("Forecast retrain primary model failed for %s: %s", symbol, exc)
             try:
-                model = _train_return_regression_model(target, config)
-                save_forecast_model(symbol, model, training_points=len(target))
+                _train_preferred_non_prophet_model(target, config, symbol, source_name)
                 trained_symbols.append(symbol)
-            except Exception as regression_exc:
-                _LOGGER.warning("Forecast retrain return-regression fallback failed for %s: %s", symbol, regression_exc)
+            except Exception as non_prophet_exc:
+                _LOGGER.warning("Forecast retrain non-prophet selection failed for %s: %s", symbol, non_prophet_exc)
                 try:
-                    legacy_model = _train_legacy_price_regression_model(target, config)
-                    save_forecast_model(symbol, legacy_model, training_points=len(target))
+                    fallback_model = _build_fallback_model(target, config)
+                    save_forecast_model(symbol, fallback_model, training_points=len(target))
                     trained_symbols.append(symbol)
-                except Exception as legacy_exc:
-                    _LOGGER.warning("Forecast retrain legacy-regression fallback failed for %s: %s", symbol, legacy_exc)
-                    try:
-                        fallback_model = _build_fallback_model(target, config)
-                        save_forecast_model(symbol, fallback_model, training_points=len(target))
-                        trained_symbols.append(symbol)
-                    except Exception:
-                        skipped_symbols.append(symbol)
+                except Exception:
+                    skipped_symbols.append(symbol)
 
     return {
         "trained_models": len(trained_symbols),

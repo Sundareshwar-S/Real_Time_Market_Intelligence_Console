@@ -67,32 +67,6 @@ p {
   letter-spacing: -0.03em;
 }
 
-.search-input {
-  flex: 1;
-  max-width: 520px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(62, 73, 74, 0.7);
-  background: var(--surface-low);
-}
-
-.search-input span {
-  color: var(--muted);
-}
-
-.search-input input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 0.9rem;
-  line-height: 38px;
-}
-
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -131,18 +105,6 @@ p {
 .topbar-actions button:hover {
   color: var(--primary);
   background: var(--surface-high);
-}
-
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(62, 73, 74, 0.7);
-  background: var(--surface-high);
-  display: grid;
-  place-items: center;
-  font-size: 0.75rem;
-  font-weight: 700;
 }
 
 .sidebar {
@@ -228,20 +190,6 @@ p {
   background: rgba(255, 183, 130, 0.18);
   border-radius: 999px;
   padding: 2px 6px;
-}
-
-.terminal-btn {
-  margin-top: auto;
-  border: 0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-weight: 700;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  color: #052229;
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-  cursor: pointer;
 }
 
 .main-area {
@@ -805,14 +753,6 @@ tbody td p {
 
   .topbar-title {
     font-size: 1.15rem;
-  }
-
-  .search-input {
-    max-width: 100%;
-  }
-
-  .topbar-actions .avatar {
-    display: none;
   }
 
   .main-area {

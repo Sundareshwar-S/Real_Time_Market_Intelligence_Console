@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { buildReadEndpoint } from "../api/endpoints";
+import { get } from "../api/restClient";
 import Panel from "../components/common/Panel";
 import ForecastRangeChart from "../components/charts/ForecastRangeChart";
 import {
@@ -14,6 +16,7 @@ const AUTO_HYDRATE_TIMEOUT_MS = 25000;
 const AUTO_HYDRATE_POLL_ATTEMPTS = 6;
 const AUTO_HYDRATE_POLL_INTERVAL_MS = 3000;
 const REFRESH_TIMEOUT_MS = 10000;
+const FORECAST_MAPE_THRESHOLD = 12;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,6 +77,9 @@ export default function ForecastsPage() {
   const [autoHydrateAttempted, setAutoHydrateAttempted] = useState(false);
   const [autoHydrateRunning, setAutoHydrateRunning] = useState(false);
   const [autoHydrateError, setAutoHydrateError] = useState("");
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState("");
+  const [diagnosticsData, setDiagnosticsData] = useState(null);
 
   const normalizedPredictions = useMemo(
     () =>
@@ -262,6 +268,78 @@ export default function ForecastsPage() {
       ? `Showing next ${Math.min(requestedDays, symbolRows.length)} days (${selectedSymbol})${modelLabel ? ` • ${modelLabel}` : ""}${valueView === "pct" ? " • % change view" : symbolUnit === "USD" ? " • USD view" : ""}`
       : autoHydrateError || "No forecast data available yet.";
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedSymbol) {
+      setDiagnosticsLoading(false);
+      setDiagnosticsError("");
+      setDiagnosticsData(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    const holdoutSteps = timeRange === "1y" ? 60 : 30;
+    const endpoint = buildReadEndpoint("forecastDiagnostics", {
+      symbol: selectedSymbol,
+      holdout_steps: holdoutSteps,
+      mape_threshold: FORECAST_MAPE_THRESHOLD,
+    });
+    setDiagnosticsLoading(true);
+    setDiagnosticsError("");
+
+    get(endpoint, { timeoutMs: 30000 })
+      .then((payload) => {
+        if (cancelled) {
+          return;
+        }
+        if (payload?.status !== "success") {
+          const message = String(payload?.error?.message || "Failed to load diagnostics.");
+          setDiagnosticsError(message);
+          setDiagnosticsData(null);
+          return;
+        }
+        setDiagnosticsData(payload.data || null);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setDiagnosticsError(String(error?.message || error || "Failed to load diagnostics."));
+        setDiagnosticsData(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDiagnosticsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSymbol, timeRange]);
+
+  const diagnosticsSymbols = useMemo(() => {
+    const rows = diagnosticsData?.diagnostics?.symbols;
+    if (!rows || typeof rows !== "object") {
+      return [];
+    }
+    return Object.entries(rows).map(([symbol, metrics]) => {
+      const modelInfo = diagnosticsData?.model_registry?.[symbol] || {};
+      return {
+        symbol,
+        status: metrics?.status || "unknown",
+        backend: metrics?.backend || modelInfo?.persisted_kind || "--",
+        points: metrics?.points ?? null,
+        mape: metrics?.mape ?? null,
+        rmse: metrics?.rmse ?? null,
+        variance_ratio: metrics?.variance_ratio ?? null,
+        degenerate_path: Boolean(metrics?.degenerate_path),
+        trained_at: modelInfo?.trained_at || null,
+        training_points: modelInfo?.training_points ?? null,
+      };
+    });
+  }, [diagnosticsData]);
+
   return (
     <div className="page">
       <header className="page-header">
@@ -337,6 +415,73 @@ export default function ForecastsPage() {
           valueMode={valueView === "pct" ? "percent" : "price"}
           unit={symbolUnit}
         />
+      </Panel>
+
+      <Panel
+        title="Model Diagnostics"
+        subtitle={`Holdout test (${diagnosticsData?.thresholds?.holdout_steps ?? "--"} steps) • low-accuracy threshold MAPE > ${FORECAST_MAPE_THRESHOLD}%`}
+      >
+        {diagnosticsLoading ? (
+          <p>Loading diagnostics…</p>
+        ) : diagnosticsError ? (
+          <p className="negative">{diagnosticsError}</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Model Backend</th>
+                  <th>Train Points</th>
+                  <th>Test Points</th>
+                  <th>MAPE</th>
+                  <th>RMSE</th>
+                  <th>Variance Ratio</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diagnosticsSymbols.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="table-empty-cell">
+                      No diagnostics available yet.
+                    </td>
+                  </tr>
+                ) : null}
+                {diagnosticsSymbols.map((row) => {
+                  const lowAccuracy =
+                    row.status === "ok" &&
+                    Number.isFinite(Number(row.mape)) &&
+                    Number(row.mape) > FORECAST_MAPE_THRESHOLD;
+                  const statusLabel =
+                    row.status !== "ok"
+                      ? row.status
+                      : row.degenerate_path
+                        ? "Degenerate"
+                        : lowAccuracy
+                          ? "Low Accuracy"
+                          : "Healthy";
+                  const statusClass =
+                    row.status !== "ok" || lowAccuracy || row.degenerate_path
+                      ? "warning"
+                      : "positive";
+                  return (
+                    <tr key={`diag-${row.symbol}`}>
+                      <td>{row.symbol}</td>
+                      <td>{formatModelLabel(row.backend)}</td>
+                      <td>{row.training_points ?? "--"}</td>
+                      <td>{row.points ?? "--"}</td>
+                      <td>{row.mape == null ? "--" : `${Number(row.mape).toFixed(2)}%`}</td>
+                      <td>{row.rmse == null ? "--" : Number(row.rmse).toFixed(3)}</td>
+                      <td>{row.variance_ratio == null ? "--" : Number(row.variance_ratio).toFixed(3)}</td>
+                      <td className={statusClass}>{statusLabel}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
 
       <Panel title="Forecast Output Matrix" subtitle="Future daily predictions">

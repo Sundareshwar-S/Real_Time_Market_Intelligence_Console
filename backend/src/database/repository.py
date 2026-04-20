@@ -404,6 +404,7 @@ def fetch_market_data_for_forecast_training(
     *,
     window_minutes: int,
     limit_per_source: int = 30000,
+    symbol: str | None = None,
 ) -> list[dict]:
     safe_window = max(1, int(window_minutes))
     safe_limit = max(1000, min(int(limit_per_source), 500000))
@@ -411,6 +412,8 @@ def fetch_market_data_for_forecast_training(
     end_time = _utc_now()
     query: dict[str, Any] = {}
     _build_time_filter(query, "captured_at", start_time, end_time)
+    if symbol:
+        query["symbol"] = symbol.upper()
 
     mapping = collection_map()
     source_collections = {
@@ -495,6 +498,7 @@ def _estimate_market_series_scan_window(
     end_dt: datetime,
     bucket: str,
     context: str,
+    symbol: str | None = None,
 ) -> int:
     bucket_seconds = {
         "1h": 3600,
@@ -506,6 +510,8 @@ def _estimate_market_series_scan_window(
     span_seconds = max(bucket_seconds, int((end_dt - start_dt).total_seconds()))
     expected_bucket_count = max(1, math.ceil(span_seconds / bucket_seconds))
     estimated_symbols = 8 if context == "all" else 4
+    if symbol and context in {"crypto", "stock"}:
+        estimated_symbols = 1
     oversample_per_bucket = {
         "1h": 50,
         "4h": 20,
@@ -520,6 +526,7 @@ def _estimate_market_series_scan_window(
 def fetch_market_series(
     *,
     context: str = "all",
+    symbol: str | None = None,
     start_time: str | datetime | None = None,
     end_time: str | datetime | None = None,
     bucket: str = "4h",
@@ -539,8 +546,13 @@ def fetch_market_series(
         raise ValueError("end_time must be >= start_time.")
 
     selected_sources = {"crypto", "stock"} if active_context == "all" else {active_context}
+    selected_symbol = str(symbol or "").strip().upper() or None
+    if active_context == "all":
+        selected_symbol = None
     query: dict[str, Any] = {}
     _build_time_filter(query, "captured_at", start_dt, end_dt)
+    if selected_symbol:
+        query["symbol"] = selected_symbol
     mapping = collection_map()
     source_collection = {
         "crypto": mapping["market_data_crypto"],
@@ -553,6 +565,7 @@ def fetch_market_series(
         end_dt=end_dt,
         bucket=bucket,
         context=active_context,
+        symbol=selected_symbol,
     )
     for source in selected_sources:
         collection_name = source_collection[source]

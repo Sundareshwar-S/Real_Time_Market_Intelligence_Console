@@ -43,10 +43,10 @@ export async function request(url, options = {}) {
   return response.json();
 }
 
-export function get(url) {
-  return request(url, { method: "GET" });
+export function get(url, options = {}) {
+  return request(url, { method: "GET", ...options });
 }
 
-export function post(url, body) {
-  return request(url, { method: "POST", body: JSON.stringify(body) });
+export function post(url, body, options = {}) {
+  return request(url, { method: "POST", body: JSON.stringify(body), ...options });
 }

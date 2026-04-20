@@ -138,7 +138,28 @@ export default function MarketsPage() {
       : selectedContextShare == null
         ? "market-share unavailable"
         : `${formatPercent(selectedContextShare)} of ${selectorTrendLabel}`;
-  const totalVolumeDisplay = totalVolume > 0 ? formatCurrency(totalVolume) : "--";
+  const selectedContextVolume = Number(selectedContextItem?.volume_24h);
+  const selectedVolume = Number.isFinite(selectedContextVolume) ? selectedContextVolume : null;
+  const totalVolumeDisplay =
+    context === "all"
+      ? (totalVolume > 0 ? formatCurrency(totalVolume) : "--")
+      : (selectedVolume != null && selectedVolume > 0 ? formatCurrency(selectedVolume) : "--");
+  const volumeTrend =
+    context === "all"
+      ? (totalVolume > 0 ? formatRelativeTime(updatedAt) : "provider volume unavailable")
+      : (selectedVolume != null && selectedVolume > 0
+          ? `${selectedContextItem?.symbol || "selected"} 24h volume`
+          : "provider volume unavailable");
+  const selectedContextVolatility = Number(selectedContextItem?.change_24h);
+  const scopedVolatility =
+    context === "all"
+      ? volatility
+      : (Number.isFinite(selectedContextVolatility) ? Math.abs(selectedContextVolatility) : null);
+  const volatilityDisplay = scopedVolatility == null ? "--" : `${scopedVolatility.toFixed(2)}%`;
+  const volatilityTrend =
+    scopedVolatility == null ? "insufficient data" : (scopedVolatility > 4 ? "Elevated" : "Stable");
+  const volatilityTrendType =
+    scopedVolatility == null ? "neutral" : (scopedVolatility > 4 ? "warning" : "positive");
   const cryptoSeries = marketSeries
     .filter((point) => Number.isFinite(Number(point?.crypto)))
     .map((point) => ({ timestamp: point.timestamp, crypto: point.crypto }));
@@ -241,15 +262,15 @@ export default function MarketsPage() {
         <KpiCard
           label="24h Volume"
           value={totalVolumeDisplay}
-          trend={totalVolume > 0 ? formatRelativeTime(updatedAt) : "provider volume unavailable"}
+          trend={volumeTrend}
           trendType="neutral"
           icon="monitoring"
         />
         <KpiCard
           label="Volatility Index"
-          value={`${volatility.toFixed(2)}%`}
-          trend={volatility > 4 ? "Elevated" : "Stable"}
-          trendType={volatility > 4 ? "warning" : "positive"}
+          value={volatilityDisplay}
+          trend={volatilityTrend}
+          trendType={volatilityTrendType}
           icon="bolt"
         />
       </section>

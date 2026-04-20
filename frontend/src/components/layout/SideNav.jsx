@@ -31,11 +31,6 @@ export default function SideNav() {
           </NavLink>
         ))}
       </nav>
-
-      <button className="terminal-btn" type="button">
-        <span className="material-symbols-outlined">bolt</span>
-        <span>Live Terminal</span>
-      </button>
     </aside>
   );
 }

@@ -278,10 +278,9 @@ def fetch_crypto_data(
                 }
             )
             continue
-        volume_24h = point["volume_24h"]
+        coingecko_volume_24h = metrics_fallback.get("volume_24h")
+        volume_24h = coingecko_volume_24h if coingecko_volume_24h is not None else point["volume_24h"]
         market_cap = point["market_cap"]
-        if volume_24h is None:
-            volume_24h = metrics_fallback.get("volume_24h")
         if market_cap is None:
             market_cap = metrics_fallback.get("market_cap")
 

@@ -75,22 +75,43 @@ function formatTooltipLabel(value, asTimeSeries) {
   });
 }
 
-function computeYAxisDomain(data) {
-  const values = data
-    .flatMap((point) => [point?.predicted, point?.lower, point?.upper])
+function computeYAxisDomain(data, valueMode = "price") {
+  const predictedValues = data
+    .map((point) => point?.predicted)
     .filter((value) => Number.isFinite(value));
+  const bandValues = data
+    .flatMap((point) => [point?.lower, point?.upper])
+    .filter((value) => Number.isFinite(value));
+  const values = [...predictedValues, ...bandValues];
   if (values.length === 0) {
     return ["auto", "auto"];
   }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const spread = max - min;
-  const scaleBase = Math.max(Math.abs(min), Math.abs(max), 1);
-  const padding = spread > 0 ? Math.max(spread * 0.2, scaleBase * 0.005) : scaleBase * 0.01;
-  const lower = min - padding;
-  const upper = max + padding;
-  if (lower === upper) {
-    return [lower - 1, upper + 1];
+
+  const focusValues = predictedValues.length > 1 ? predictedValues : values;
+  const focusMin = Math.min(...focusValues);
+  const focusMax = Math.max(...focusValues);
+  const focusSpread = focusMax - focusMin;
+  const focusScale = Math.max(Math.abs(focusMin), Math.abs(focusMax), 1);
+  const minVisualSpread = valueMode === "percent" ? 0.8 : focusScale * 0.02;
+  const visualSpread = Math.max(focusSpread, minVisualSpread);
+
+  const focusCenter = (focusMin + focusMax) / 2;
+  const focusHalf = visualSpread / 2;
+  const focusPadding = visualSpread * 0.18;
+  let lower = focusCenter - focusHalf - focusPadding;
+  let upper = focusCenter + focusHalf + focusPadding;
+
+  if (bandValues.length > 0) {
+    const bandMin = Math.min(...bandValues);
+    const bandMax = Math.max(...bandValues);
+    const maxExtension = visualSpread * 1.3;
+    lower = Math.min(lower, Math.max(bandMin, lower - maxExtension));
+    upper = Math.max(upper, Math.min(bandMax, upper + maxExtension));
+  }
+
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower === upper) {
+    const nudge = valueMode === "percent" ? 0.5 : Math.max(1, focusScale * 0.01);
+    return [focusCenter - nudge, focusCenter + nudge];
   }
   return [lower, upper];
 }
@@ -107,7 +128,7 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
     lower: Number.isFinite(point?.lower) ? point.lower : point?.predicted,
     upper: Number.isFinite(point?.upper) ? point.upper : point?.predicted,
   }));
-  const yDomain = computeYAxisDomain(chartData);
+  const yDomain = computeYAxisDomain(chartData, valueMode);
   const chartUnit = chartData.find((point) => point?.unit)?.unit || unit || null;
 
   return (

@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 from ..core.utils import get_logger
 from ..database.repository import fetch_freshness_status, fetch_market_series
 from ..schemas.common_schema import build_error_response, build_success_response
-from .validators import parse_iso_datetime
+from .validators import parse_iso_datetime, parse_symbol
 
 series_bp = Blueprint("series", __name__, url_prefix="/api/series")
 logger = get_logger("backend.api.series")
@@ -57,6 +57,8 @@ def _resolve_bucket(
 def get_market_series():
     try:
         context = _resolve_context(request.args.get("context"))
+        symbol = parse_symbol(request.args.get("symbol"), "symbol")
+        selected_symbol = symbol if context in {"crypto", "stock"} else None
         start_raw = parse_iso_datetime(request.args.get("start_time"), "start_time")
         end_raw = parse_iso_datetime(request.args.get("end_time"), "end_time")
         end_time = (
@@ -78,6 +80,7 @@ def get_market_series():
 
         points = fetch_market_series(
             context=context,
+            symbol=selected_symbol,
             start_time=start_time,
             end_time=end_time,
             bucket=bucket,
@@ -90,6 +93,7 @@ def get_market_series():
             source="database",
             filters={
                 "context": context,
+                **({"symbol": selected_symbol} if selected_symbol else {}),
                 "start_time": start_time.isoformat().replace("+00:00", "Z"),
                 "end_time": end_time.isoformat().replace("+00:00", "Z"),
                 "bucket": bucket,

@@ -4,6 +4,7 @@ export const endpoints = {
   data: `${API_BASE}/api/data`,
   latest: `${API_BASE}/api/latest`,
   forecast: `${API_BASE}/api/forecast`,
+  forecastDiagnostics: `${API_BASE}/api/forecast/diagnostics`,
   correlation: `${API_BASE}/api/correlation`,
   anomalies: `${API_BASE}/api/anomalies`,
   marketSeries: `${API_BASE}/api/series/market`,

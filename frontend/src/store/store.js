@@ -313,9 +313,21 @@ function buildReadFilters({ context = state.context, timeRange = state.timeRange
   return { timeWindow, sources, buildSourceQueries };
 }
 
+function resolveSelectedSeriesSymbol(context, filters = {}) {
+  const normalizedContext = normalizeContext(context);
+  if (normalizedContext === "crypto") {
+    return String(filters.selectedCryptoSymbol ?? state.market.selectedCryptoSymbol ?? "").toUpperCase() || null;
+  }
+  if (normalizedContext === "stock") {
+    return String(filters.selectedStockSymbol ?? state.market.selectedStockSymbol ?? "").toUpperCase() || null;
+  }
+  return null;
+}
+
 function buildBootstrapEndpoints(filters = {}) {
   const context = normalizeContext(filters.context ?? state.context);
   const { timeWindow, buildSourceQueries } = buildReadFilters(filters);
+  const selectedSeriesSymbol = resolveSelectedSeriesSymbol(context, filters);
   const anomalyWindow = normalizeAnomalyWindow(filters.anomalyWindow ?? state.anomalyWindow);
   const anomalyWindowRange = getAnomalyWindowRange(anomalyWindow);
   const anomalyLimit = anomalyWindow === "30d" ? 2500 : anomalyWindow === "7d" ? 1200 : 500;
@@ -339,6 +351,7 @@ function buildBootstrapEndpoints(filters = {}) {
     marketSeries: buildReadEndpoint("marketSeries", {
       ...timeWindow,
       context,
+      symbol: selectedSeriesSymbol,
       bucket: resolveSeriesBucket(context, normalizeTimeRange(filters.timeRange ?? state.timeRange)),
       max_points: MAX_SERIES_POINTS,
     }),
@@ -1090,17 +1103,30 @@ export function setSelectedMarketSymbol(category, symbol) {
   if (!normalizedCategory || !normalizedSymbol) {
     return;
   }
+  let shouldRefreshSeries = false;
   update((draft) => {
     const scopedItems = getItemsByCategory(draft.market.items, normalizedCategory);
     if (!scopedItems.some((item) => item.symbol === normalizedSymbol)) {
       return;
     }
+    const currentSymbol =
+      normalizedCategory === "crypto"
+        ? draft.market.selectedCryptoSymbol
+        : draft.market.selectedStockSymbol;
+    if (currentSymbol === normalizedSymbol) {
+      return;
+    }
     if (normalizedCategory === "crypto") {
       draft.market.selectedCryptoSymbol = normalizedSymbol;
+      shouldRefreshSeries = draft.context === "crypto";
       return;
     }
     draft.market.selectedStockSymbol = normalizedSymbol;
+    shouldRefreshSeries = draft.context === "stock";
   });
+  if (shouldRefreshSeries) {
+    void bootstrapData({ context: state.context, timeRange: state.timeRange });
+  }
 }
 
 export function setDataContext(context) {
