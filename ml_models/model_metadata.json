@@ -105,21 +105,21 @@
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_AAPL.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:19:19.895936Z",
+      "trained_at": "2026-04-20T14:35:00.453326Z",
       "training_points": 729
     },
     "BTC": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_BTC.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:19:25.566051Z",
+      "trained_at": "2026-04-20T14:35:06.291680Z",
       "training_points": 731
     },
     "ETH": {
       "artifact": "/home/esh/Desktop/DEP_MINI_PROJECT/ml_models/forecast_prophet_ETH.joblib",
       "format": "joblib",
       "model_type": "dict",
-      "trained_at": "2026-04-20T14:19:31.919979Z",
+      "trained_at": "2026-04-20T14:35:13.859399Z",
       "training_points": 731
     },
     "MSFT": {
@@ -165,6 +165,6 @@
       "training_points": 154
     }
   },
-  "updated_at": "2026-04-20T14:34:27.893200Z",
+  "updated_at": "2026-04-20T14:35:13.859565Z",
   "version": 1
 }
