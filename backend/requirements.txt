@@ -1,0 +1,12 @@
+flask
+flask-cors
+flask-socketio
+python-dotenv
+httpx
+pymongo
+APScheduler
+pandas
+numpy
+scikit-learn
+joblib
+prophet
