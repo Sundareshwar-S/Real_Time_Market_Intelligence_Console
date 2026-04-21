@@ -75,6 +75,26 @@ function formatTooltipLabel(value, asTimeSeries) {
   });
 }
 
+function computePercentile(sortedValues, percentile) {
+  if (!Array.isArray(sortedValues) || sortedValues.length === 0) {
+    return Number.NaN;
+  }
+  const clamped = Math.min(1, Math.max(0, percentile));
+  const index = (sortedValues.length - 1) * clamped;
+  const lowerIndex = Math.floor(index);
+  const upperIndex = Math.ceil(index);
+  const lower = sortedValues[lowerIndex];
+  const upper = sortedValues[upperIndex];
+  if (!Number.isFinite(lower)) {
+    return Number.NaN;
+  }
+  if (!Number.isFinite(upper) || lowerIndex === upperIndex) {
+    return lower;
+  }
+  const weight = index - lowerIndex;
+  return lower + (upper - lower) * weight;
+}
+
 function computeYAxisDomain(data, valueMode = "price") {
   const predictedValues = data
     .map((point) => point?.predicted)
@@ -87,29 +107,45 @@ function computeYAxisDomain(data, valueMode = "price") {
     return ["auto", "auto"];
   }
 
-  const focusValues = predictedValues.length > 1 ? predictedValues : values;
-  const focusMin = Math.min(...focusValues);
-  const focusMax = Math.max(...focusValues);
+  const focusValues = (predictedValues.length > 1 ? predictedValues : values).slice().sort((a, b) => a - b);
+  const focusLowerQ = focusValues.length >= 8 ? 0.08 : 0;
+  const focusUpperQ = focusValues.length >= 8 ? 0.92 : 1;
+  const fallbackFocusMin = focusValues[0];
+  const fallbackFocusMax = focusValues[focusValues.length - 1];
+  const focusMin = Number.isFinite(computePercentile(focusValues, focusLowerQ))
+    ? computePercentile(focusValues, focusLowerQ)
+    : fallbackFocusMin;
+  const focusMax = Number.isFinite(computePercentile(focusValues, focusUpperQ))
+    ? computePercentile(focusValues, focusUpperQ)
+    : fallbackFocusMax;
   const focusSpread = focusMax - focusMin;
   const focusScale = Math.max(Math.abs(focusMin), Math.abs(focusMax), 1);
-  const minVisualSpread = valueMode === "percent" ? 0.8 : focusScale * 0.02;
+  const minVisualSpread = valueMode === "percent" ? 1.0 : focusScale * 0.015;
   const visualSpread = Math.max(focusSpread, minVisualSpread);
 
-  const focusCenter = (focusMin + focusMax) / 2;
-  const focusHalf = visualSpread / 2;
-  const focusPadding = visualSpread * 0.18;
-  let lower = focusCenter - focusHalf - focusPadding;
-  let upper = focusCenter + focusHalf + focusPadding;
+  const focusPadding = visualSpread * (valueMode === "percent" ? 0.2 : 0.16);
+  let lower = focusMin - focusPadding;
+  let upper = focusMax + focusPadding;
 
   if (bandValues.length > 0) {
-    const bandMin = Math.min(...bandValues);
-    const bandMax = Math.max(...bandValues);
-    const maxExtension = visualSpread * 1.3;
-    lower = Math.min(lower, Math.max(bandMin, lower - maxExtension));
-    upper = Math.max(upper, Math.min(bandMax, upper + maxExtension));
+    const sortedBand = bandValues.slice().sort((a, b) => a - b);
+    const bandLowerQ = sortedBand.length >= 10 ? 0.05 : 0;
+    const bandUpperQ = sortedBand.length >= 10 ? 0.95 : 1;
+    const fallbackBandMin = sortedBand[0];
+    const fallbackBandMax = sortedBand[sortedBand.length - 1];
+    const bandMin = Number.isFinite(computePercentile(sortedBand, bandLowerQ))
+      ? computePercentile(sortedBand, bandLowerQ)
+      : fallbackBandMin;
+    const bandMax = Number.isFinite(computePercentile(sortedBand, bandUpperQ))
+      ? computePercentile(sortedBand, bandUpperQ)
+      : fallbackBandMax;
+    const maxBandExtension = visualSpread * (valueMode === "percent" ? 1.0 : 0.8);
+    lower = Math.min(lower, Math.max(bandMin, lower - maxBandExtension));
+    upper = Math.max(upper, Math.min(bandMax, upper + maxBandExtension));
   }
 
-  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower === upper) {
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) {
+    const focusCenter = (focusMin + focusMax) / 2;
     const nudge = valueMode === "percent" ? 0.5 : Math.max(1, focusScale * 0.01);
     return [focusCenter - nudge, focusCenter + nudge];
   }
@@ -129,6 +165,7 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
     upper: Number.isFinite(point?.upper) ? point.upper : point?.predicted,
   }));
   const yDomain = computeYAxisDomain(chartData, valueMode);
+  const yTickCount = valueMode === "percent" ? 7 : 6;
   const chartUnit = chartData.find((point) => point?.unit)?.unit || unit || null;
 
   return (
@@ -139,7 +176,7 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
             dataKey={xKey}
             axisLine={false}
             tickLine={false}
-            stroke="#bdc9ca"
+            stroke="var(--chart-axis)"
             tick={{ fontSize: 11 }}
             tickFormatter={(value) => formatXAxisValue(value, asTimeSeries)}
           />
@@ -147,9 +184,10 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
             type="number"
             domain={yDomain}
             allowDataOverflow
+            tickCount={yTickCount}
             axisLine={false}
             tickLine={false}
-            stroke="#bdc9ca"
+            stroke="var(--chart-axis)"
             tick={{ fontSize: 11 }}
             width={52}
             tickFormatter={(v) => formatAxisValue(v, valueMode, chartUnit)}
@@ -158,15 +196,15 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
             formatter={(value, name) => [formatTooltipValue(value, valueMode, chartUnit), name]}
             labelFormatter={(value) => formatTooltipLabel(value, asTimeSeries)}
             contentStyle={{
-              background: "#1c1b1b",
-              border: "1px solid #3e494a",
+              background: "var(--tooltip-background)",
+              border: "1px solid var(--tooltip-border)",
               borderRadius: "8px",
             }}
           />
           <Line
             type="monotone"
             dataKey="lower"
-            stroke="rgba(85, 215, 237, 0.55)"
+            stroke="var(--primary-muted)"
             strokeWidth={1.2}
             strokeDasharray="4 4"
             dot={false}
@@ -176,7 +214,7 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
           <Line
             type="monotone"
             dataKey="upper"
-            stroke="rgba(85, 215, 237, 0.55)"
+            stroke="var(--primary-muted)"
             strokeWidth={1.2}
             strokeDasharray="4 4"
             dot={false}
@@ -186,7 +224,7 @@ export default function ForecastRangeChart({ data, height = 260, valueMode = "pr
           <Line
             type="monotone"
             dataKey="predicted"
-            stroke="#55d7ed"
+            stroke="var(--primary)"
             strokeWidth={2.5}
             dot={false}
             animationDuration={600}

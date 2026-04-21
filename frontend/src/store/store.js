@@ -10,6 +10,9 @@ const DEFAULT_TIME_RANGE = "30d";
 const VALID_TIME_RANGES = new Set(["30d", "1y", "4y"]);
 const DEFAULT_ANOMALY_WINDOW = "24h";
 const VALID_ANOMALY_WINDOWS = new Set(["24h", "7d", "30d"]);
+const DEFAULT_THEME = "dark";
+const VALID_THEMES = new Set(["dark", "light"]);
+const THEME_STORAGE_KEY = "dep-dashboard-theme";
 const BUCKET_FOR_RANGE = { "30d": "1h", "1y": "1d", "4y": "1m" };
 const CONTEXT_SOURCE_MAP = {
   crypto: "crypto",
@@ -29,12 +32,40 @@ function resolveSeriesBucket(context, timeRange) {
   return BUCKET_FOR_RANGE[normalizedRange] || "1h";
 }
 
+function normalizeTheme(theme) {
+  const normalized = String(theme || "").toLowerCase();
+  return VALID_THEMES.has(normalized) ? normalized : DEFAULT_THEME;
+}
+
+function readStoredTheme() {
+  if (typeof window === "undefined") {
+    return DEFAULT_THEME;
+  }
+  try {
+    return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+  } catch (error) {
+    console.warn("[Theme] Failed to read persisted theme", error);
+    return DEFAULT_THEME;
+  }
+}
+
+function persistTheme(theme) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, normalizeTheme(theme));
+  } catch (error) {
+    console.warn("[Theme] Failed to persist theme", error);
+  }
+}
+
 const state = {
   context: "all",
   timeRange: DEFAULT_TIME_RANGE,
   anomalyWindow: DEFAULT_ANOMALY_WINDOW,
   query: "",
-  theme: "dark",
+  theme: readStoredTheme(),
   initialized: false,
   connection: {
     connected: false,
@@ -1158,6 +1189,21 @@ export function setAnomalyWindow(anomalyWindow) {
     draft.charts.anomalySeries = buildHistoricalAnomalySeries(draft.anomalies.events, nextWindow);
   });
   void bootstrapData({ context: state.context, timeRange: state.timeRange, anomalyWindow: nextWindow });
+}
+
+export function setTheme(theme) {
+  const nextTheme = normalizeTheme(theme);
+  if (state.theme === nextTheme) {
+    return;
+  }
+  update((draft) => {
+    draft.theme = nextTheme;
+  });
+  persistTheme(nextTheme);
+}
+
+export function toggleTheme() {
+  setTheme(state.theme === "dark" ? "light" : "dark");
 }
 
 export function getState() {

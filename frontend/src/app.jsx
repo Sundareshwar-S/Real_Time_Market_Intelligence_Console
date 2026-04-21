@@ -12,6 +12,7 @@ const ForecastsPage = lazy(() => import("./pages/forecasts"));
 export default function App() {
   const [initializing, setInitializing] = useState(true);
   const initialized = useAppStore((s) => s.initialized);
+  const theme = useAppStore((s) => s.theme);
 
   useEffect(() => {
     initializeRealtimeApp();
@@ -27,6 +28,10 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [initialized]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   return (
     <>

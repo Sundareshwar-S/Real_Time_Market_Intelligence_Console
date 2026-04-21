@@ -1,4 +1,5 @@
-/.venv
-/.vscode
+.venv
+.vscode
 __pycache__/
 /.ruff_chache__/
+/ml_models/

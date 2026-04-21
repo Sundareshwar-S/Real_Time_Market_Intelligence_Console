@@ -49,75 +49,96 @@
 
 DEP_MINI_PROJECT/
 │
+├── DEP_Mini_Project_Report.md
+├── pytest.ini
+├── requirements.txt
 ├── backend/
-│   ├── src/
-│   │   ├── app.py                     # Flask entry point (MAIN)
-│   │   │
-│   │   ├── api/                       # API routes (Flask Blueprints)
-│   │   │   ├── data.py
-│   │   │   ├── forecast.py
-│   │   │   ├── correlation.py
-│   │   │   ├── alerts.py
-│   │   │   ├── metrics.py
-│   │   │   ├── ops.py
-│   │   │   └── websocket.py           # Socket.IO or WS handler
-│   │   │
-│   │   ├── services/                  # Business logic
-│   │   │   ├── ingestion/
-│   │   │   │   ├── crypto_service.py
-│   │   │   │   ├── weather_service.py
-│   │   │   │   └── stock_service.py
-│   │   │   │
-│   │   │   ├── processing/
-│   │   │   │   ├── cleaner.py
-│   │   │   │   ├── anomaly.py
-│   │   │   │   ├── forecast.py
-│   │   │   │   └── correlation.py
-│   │   │   │
-│   │   │   ├── alerts/
-│   │   │   │   ├── alert_service.py
-│   │   │   │   └── notifier.py
-│   │   │   │
-│   │   │   └── metrics_service.py
-│   │
-│   │   ├── database/
-│   │   │   ├── db.py
-│   │   │   ├── models.py
-│   │   │   └── repository.py
-│   │ 
-│   │   ├── scheduler/
-│   │   │   └── scheduler.py
-│   │
-│   │   ├── core/
-│   │   │   ├── config.py
-│   │   │   └── utils.py
-│   │
-│   │   └── schemas/
-│   │       ├── data_schema.py
-│   │       ├── forecast_schema.py
-│   │       ├── alert_schema.py
-│   │       └── metrics_schema.py
-│   │
-│   └── requirements.txt
-│
+│   ├── __init__.py
+│   ├── requirements.txt
+│   └── src/
+│       ├── __init__.py
+│       ├── app.py                     # Flask entry point (MAIN)
+│       ├── optimize.py
+│       ├── api/
+│       │   ├── __init__.py
+│       │   ├── anomalies.py
+│       │   ├── correlation.py
+│       │   ├── data.py
+│       │   ├── dummy_payloads.py
+│       │   ├── forecast.py
+│       │   ├── ops.py
+│       │   ├── series.py
+│       │   ├── validators.py
+│       │   └── websocket.py
+│       ├── core/
+│       │   ├── __init__.py
+│       │   ├── config.py
+│       │   └── utils.py
+│       ├── database/
+│       │   ├── __init__.py
+│       │   ├── db.py
+│       │   ├── models.py
+│       │   └── repository.py
+│       ├── scheduler/
+│       │   ├── __init__.py
+│       │   └── scheduler.py
+│       ├── schemas/
+│       │   ├── __init__.py
+│       │   ├── alert_schema.py
+│       │   ├── anomaly_schema.py
+│       │   ├── common_schema.py
+│       │   ├── correlation_schema.py
+│       │   ├── data_schema.py
+│       │   ├── forecast_schema.py
+│       │   └── metrics_schema.py
+│       └── services/
+│           ├── __init__.py
+│           ├── metrics_service.py
+│           ├── alerts/
+│           │   ├── __init__.py
+│           │   ├── alert_service.py
+│           │   └── notifier.py
+│           ├── ingestion/
+│           │   ├── __init__.py
+│           │   ├── crypto_history_service.py
+│           │   ├── crypto_service.py
+│           │   ├── stock_history_service.py
+│           │   ├── stock_service.py
+│           │   └── weather_service.py
+│           └── processing/
+│               ├── __init__.py
+│               ├── anomaly.py
+│               ├── cleaner.py
+│               ├── correlation.py
+│               ├── forecast.py
+│               └── model_registry.py
 ├── frontend/
-│   ├── src/
-│   │   ├── index.html
-│   │   ├── app.js
-│   │
-│   │   ├── api/
-│   │   │   ├── restClient.js
-│   │   │   ├── socketClient.js
-│   │   │   └── endpoints.js
-│   │
-│   │   ├── store/
-│   │   │   └── store.js
-│   │
-│   │   ├── components/
-│   │   ├── pages/
-│   │   └── styles/
-│   │       └── style.css
-│
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── app.jsx
+│       ├── main.jsx
+│       ├── api/
+│       │   ├── endpoints.js
+│       │   ├── restClient.js
+│       │   └── socketClient.js
+│       ├── components/
+│       │   ├── charts/
+│       │   ├── common/
+│       │   └── layout/
+│       ├── data/
+│       ├── pages/
+│       │   ├── anomalies.jsx
+│       │   ├── forecasts.jsx
+│       │   ├── markets.jsx
+│       │   └── overview.jsx
+│       ├── store/
+│       │   └── store.js
+│       ├── styles/
+│       │   └── style.css
+│       └── utils/
+│           └── formatters.js
 ├── ml_models/
 └── .env
 

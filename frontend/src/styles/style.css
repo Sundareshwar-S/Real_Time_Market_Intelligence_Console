@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --background: #131313;
   --surface: #201f1f;
   --surface-low: #1c1b1b;
@@ -11,6 +12,42 @@
   --outline: #3e494a;
   --warning: #ffb782;
   --danger: #ffb4ab;
+  --topbar-background: rgba(19, 19, 19, 0.8);
+  --segmented-background: #0e0e0e;
+  --segmented-select-background: #111415;
+  --chart-surface: #161616;
+  --overlay-background: rgba(19, 19, 19, 0.92);
+  --chart-grid: #3e494a;
+  --chart-axis: #bdc9ca;
+  --tooltip-background: #1c1b1b;
+  --tooltip-border: #3e494a;
+  --primary-muted: rgba(85, 215, 237, 0.55);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #f4f7fb;
+  --surface: #ffffff;
+  --surface-low: #f7f9fc;
+  --surface-high: #edf2f7;
+  --surface-bright: #d6e0ea;
+  --primary: #007385;
+  --primary-strong: #005f6e;
+  --text: #1f2c3a;
+  --muted: #5f6f80;
+  --outline: #c6d2dd;
+  --warning: #b66a00;
+  --danger: #c5493f;
+  --topbar-background: rgba(255, 255, 255, 0.85);
+  --segmented-background: #edf2f7;
+  --segmented-select-background: #ffffff;
+  --chart-surface: #f2f6fa;
+  --overlay-background: rgba(244, 247, 251, 0.92);
+  --chart-grid: #d5dee7;
+  --chart-axis: #66788a;
+  --tooltip-background: #ffffff;
+  --tooltip-border: #c6d2dd;
+  --primary-muted: rgba(0, 115, 133, 0.55);
 }
 
 * {
@@ -54,7 +91,7 @@ p {
   gap: 16px;
   padding: 0 24px;
   border-bottom: 1px solid rgba(189, 201, 202, 0.12);
-  background: rgba(19, 19, 19, 0.8);
+  background: var(--topbar-background);
   backdrop-filter: blur(10px);
   z-index: 20;
 }
@@ -226,7 +263,7 @@ p {
   gap: 4px;
   border: 1px solid rgba(62, 73, 74, 0.5);
   border-radius: 10px;
-  background: #0e0e0e;
+  background: var(--segmented-background);
   padding: 4px;
 }
 
@@ -246,7 +283,7 @@ p {
 
 .segmented select {
   border: 1px solid rgba(62, 73, 74, 0.8);
-  background: #111415;
+  background: var(--segmented-select-background);
   color: var(--text);
   padding: 7px 10px;
   border-radius: 8px;
@@ -425,7 +462,7 @@ p {
   height: 160px;
   border: 1px solid rgba(62, 73, 74, 0.5);
   border-radius: 10px;
-  background: #161616;
+  background: var(--chart-surface);
   position: relative;
   overflow: hidden;
 }
@@ -786,7 +823,7 @@ tbody td p {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  background: rgba(19, 19, 19, 0.92);
+  background: var(--overlay-background);
   backdrop-filter: blur(12px);
   animation: fadeIn 0.3s ease;
 }

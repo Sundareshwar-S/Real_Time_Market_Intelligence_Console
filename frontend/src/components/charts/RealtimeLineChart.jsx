@@ -125,14 +125,14 @@ export default function RealtimeLineChart({
             axisLine={false}
             tickLine={false}
             minTickGap={20}
-            stroke="#bdc9ca"
+            stroke="var(--chart-axis)"
             tick={{ fontSize: 11 }}
           />
           <YAxis
             domain={yDomain}
             axisLine={false}
             tickLine={false}
-            stroke="#bdc9ca"
+            stroke="var(--chart-axis)"
             tick={{ fontSize: 11 }}
             width={52}
             tickFormatter={(value) => formatYAxis(value, valueMode)}
@@ -141,8 +141,8 @@ export default function RealtimeLineChart({
             labelFormatter={formatTooltipLabel}
             formatter={(value) => formatTooltipValue(value, valueMode)}
             contentStyle={{
-              background: "#1c1b1b",
-              border: "1px solid #3e494a",
+              background: "var(--tooltip-background)",
+              border: "1px solid var(--tooltip-border)",
               borderRadius: "8px",
             }}
           />
